@@ -1,0 +1,11 @@
+# Only sources required by the GPU image enter its build context.
+**
+!pyproject.toml
+!LICENSE
+!NOTICE
+!djev/
+!djev/*.py
+!runtime/
+!runtime/*.py
+!runtime/*.json
+!runtime/Dockerfile

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1B4038" />
+    <meta name="description" content="A local playground for typed decisions from text, JSON, images and camera frames." />
+    <title>Djev · Local playground</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#state-input">Skip to input</a>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">d</span><h1>djev<span> / playground</span></h1></div>
+      <div class="local-label"><span class="status-dot" id="health-dot"></span><span id="health-label">Local workspace</span></div>
+    </header>
+    <nav class="examples" aria-label="Example requests">
+      <span class="eyebrow">Start with an example</span>
+      <button data-example="text">01 <span>Support triage</span></button>
+      <button data-example="image">02 <span>Shape check</span><span class="tiny-tag">IMAGE</span></button>
+      <button data-example="choices">03 <span>Visual match</span><span class="tiny-tag">IMAGE OPTIONS</span></button>
+    </nav>
+    <main class="workspace">
+      <section class="composer" aria-label="Request editor">
+        <div class="composer-scroll">
+          <section class="panel state-panel">
+            <div class="section-heading"><div><span class="section-number">01</span><h2>State</h2></div><span class="muted">Context for your questions</span></div>
+            <div class="panel-content">
+              <div class="segments" id="state-modes" role="group" aria-label="State input format">
+                <button data-mode="text" aria-pressed="true">Text</button><button data-mode="json" aria-pressed="false">JSON</button><button data-mode="image" aria-pressed="false">Image</button><button data-mode="camera" aria-pressed="false">Camera <span class="live-pill">LIVE</span></button>
+              </div>
+              <label for="state-input" id="state-label">Text context</label>
+              <textarea id="state-input" rows="6" maxlength="20000" spellcheck="false"></textarea>
+              <div class="field-meta"><span id="state-count">0 / 20,000 characters</span><button id="format-state" class="text-button" hidden>Format JSON</button></div>
+              <div id="state-image" class="image-area" hidden>
+                <label class="upload-label">Choose an image<input id="image-upload" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+                <span class="muted small">PNG, JPEG or WebP · up to 5 MB</span>
+                <div id="image-preview-wrap" class="preview-wrap" hidden><img id="image-preview" alt="State image preview" /><button id="remove-image" class="remove-image" aria-label="Remove state image">×</button></div>
+              </div>
+              <div id="camera-area" hidden>
+                <div class="camera-preview"><video id="camera-preview" autoplay muted playsinline aria-label="Live camera preview"></video><div id="camera-placeholder">Your camera stays off until you start it.</div><span id="camera-badge" class="camera-badge" hidden>LIVE</span></div>
+                <div class="camera-actions"><button id="camera-toggle" class="secondary">Start camera</button><button id="live-toggle" class="secondary" disabled>Start live</button><span class="muted small">One frame at a time. No video is stored.</span></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel questions-panel">
+            <div class="section-heading"><div><span class="section-number">02</span><h2>Questions</h2></div><div class="segments compact" role="group" aria-label="Question editor"><button id="visual-mode" aria-pressed="true">Visual</button><button id="json-mode" aria-pressed="false">JSON</button></div></div>
+            <div class="panel-content">
+              <p class="field-help">Ask yes / no, choose an option, or score against a scale.</p>
+              <div id="question-list"></div>
+              <div id="question-json-wrap" hidden><label for="question-json">Questions JSON</label><textarea id="question-json" class="code-editor" rows="17" spellcheck="false"></textarea><button id="format-questions" class="text-button">Format JSON</button></div>
+              <div class="add-questions"><span>Add question</span><button data-add="noul">+ Noul</button><button data-add="choice">+ Choice</button><button data-add="score">+ Score</button><span id="question-count" class="muted small"></span></div>
+            </div>
+          </section>
+        </div>
+        <div class="runbar"><div><p id="run-status" role="status" aria-live="polite">Ready when you are.</p><span class="keyboard-hint">⌘ / Ctrl + Enter</span></div><button id="run" class="primary">Run questions <span aria-hidden="true">↗</span></button></div>
+      </section>
+      <section class="results-column" aria-label="Results">
+        <div id="error" class="error" role="alert" hidden><span id="error-text"></span><button id="dismiss-error" aria-label="Dismiss error">×</button></div>
+        <section class="panel answer-panel">
+          <div class="section-heading"><div><span class="section-number">03</span><h2>Answers</h2></div><button id="copy-response" class="text-button" disabled>Copy JSON</button></div>
+          <div id="timing" class="timing" hidden></div>
+          <div id="answers" class="panel-content"><div class="empty-state"><div class="empty-symbol" aria-hidden="true">↗</div><h3>A place for your answers.</h3><p>Add some context, define your questions,<br />and run a request.</p></div></div>
+          <details id="raw-details" hidden><summary>Response JSON</summary><pre id="raw-response"></pre></details>
+        </section>
+        <section class="panel request-panel">
+          <div class="section-heading"><div><span class="section-number">↗</span><h2 id="request-title">Request preview</h2></div><button id="copy-request" class="text-button">Copy request</button></div>
+          <div class="request-tools"><div class="segments compact" id="code-modes" role="group" aria-label="Request language"><button data-language="curl" aria-pressed="true">cURL</button><button data-language="python" aria-pressed="false">Python</button><button data-language="typescript" aria-pressed="false">TypeScript</button><button data-language="json" aria-pressed="false">JSON</button></div><span class="muted small">POST /v1/request</span></div>
+          <pre id="request-code" tabindex="0"></pre>
+        </section>
+        <footer>Local inputs. Typed answers. <span>Built to experiment.</span></footer>
+      </section>
+    </main>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

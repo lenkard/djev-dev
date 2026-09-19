@@ -51,7 +51,7 @@ This is an inference adaptation, not fine-tuning. It trades the model's full ite
 Images are decoded and bounded before inference. State images, question images, and option images become native multimodal message parts, with textual references preserving which image belongs to which choice.
 
 ```mermaid
-flowchart LR
+flowchart TB
     R[Reference image] --> M[Multimodal prompt]
     O1[Option A image + text] --> M
     O2[Option B image + text] --> M
@@ -102,7 +102,7 @@ This is useful for changing visual state: an object entering view, a label facin
 ## Recommended serving layout
 
 ```mermaid
-flowchart LR
+flowchart TB
     U[Client / playground] --> G[TLS gateway + access policy]
     G --> A[Djev API]
     A --> V[Private vLLM endpoint]

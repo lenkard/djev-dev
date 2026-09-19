@@ -111,7 +111,7 @@ Independent question isolation makes a question's prompt and seeded canvas indep
 ## What the patches do
 
 ```mermaid
-flowchart LR
+flowchart TB
   A[Typed state and questions] --> B[One-token labels and compact canvas]
   B --> C{Native image attachments?}
   C -->|No| D[Token IDs to completion endpoint]

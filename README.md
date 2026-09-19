@@ -37,7 +37,7 @@ Camera mode samples frames and makes image requests. It does not maintain tempor
 ## The inference path
 
 ```mermaid
-flowchart LR
+flowchart TB
     A[Text or JSON] --> C[Typed request compiler]
     B[Images and camera frames] --> C
     C --> D[Prompt + exact label IDs]

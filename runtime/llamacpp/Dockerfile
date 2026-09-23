@@ -8,9 +8,10 @@ ARG CUDA_ARCH=86
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates cmake curl git build-essential && rm -rf /var/lib/apt/lists/*
 # CMAKE_CUDA_ARCHITECTURES pins the compiled arch (GPU-matched, smaller/faster build).
-# The CUDA driver stub lets the final link resolve libcuda.so.1 without a GPU;
-# the real driver library is injected by the NVIDIA runtime at container start.
-RUN git clone "$LLAMA_CPP_REPOSITORY" /src/llama.cpp && cd /src/llama.cpp && \
+# The CUDA driver stub symlink lets the final link resolve libcuda.so.1 without a
+# GPU (build-stage only); the NVIDIA runtime injects the real driver at start.
+RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/lib/x86_64-linux-gnu/libcuda.so.1 && \
+    git clone "$LLAMA_CPP_REPOSITORY" /src/llama.cpp && cd /src/llama.cpp && \
     git checkout "$LLAMA_CPP_COMMIT" && \
     cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=$CUDA_ARCH -DLLAMA_CURL=OFF \
         -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/cuda/lib64/stubs -DCMAKE_BUILD_TYPE=Release && \

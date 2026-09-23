@@ -73,6 +73,8 @@ async def test_optional_bearer_key_precedes_body_parsing_and_rejects_duplicates(
     engine = Engine()
     async with httpx.AsyncClient(transport=httpx.ASGITransport(create_app(engine=engine, api_key="test-only-placeholder")), base_url="http://test") as client:
         assert (await client.post("/v1/request", content="{")).status_code == 401
+        assert (await client.get("/health")).status_code == 401
+        assert (await client.get("/config")).status_code == 401
         headers = [("Authorization", "Bearer test-only-placeholder")] * 2
         assert (await client.post("/v1/request", json=BODY, headers=headers)).status_code == 401
         assert (await client.post("/v1/request", json=BODY, headers={"Authorization": "Bearer test-only-placeholder"})).status_code == 200

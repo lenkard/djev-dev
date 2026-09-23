@@ -71,7 +71,12 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        response = await call_next(request)
+        # The service is commonly published through a tunnel. Do not leave
+        # metadata, OpenAPI, static UI, or health details anonymously visible.
+        if api_key and not authorized(request):
+            response = _error(401, "A valid API key is required", **{"WWW-Authenticate": "Bearer"})
+        else:
+            response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -114,9 +119,7 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
         "application/json": {"schema": {"$ref": "#/components/schemas/DjevRequest"}}}}})
     async def evaluate(request: Request):
         nonlocal active
-        if not authorized(request):
-            return _error(401, "A valid API key is required", **{"WWW-Authenticate": "Bearer"})
-        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json": 
             return _error(415, "Content-Type must be application/json")
         lengths = request.headers.getlist("content-length")
         try:

@@ -43,7 +43,17 @@ async def test_request_success_default_seed_health_and_honest_timing():
         assert (await client.get("/v1/machine")).status_code == 404
 
 
-@pytest.mark.parametrize("body,status", [
+async def test_systemone_is_a_wire_compatible_alias_of_the_native_request_path():
+    engine = Engine()
+    payload = {**BODY, "model": "djev-latest"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(create_app(engine=engine)), base_url="http://test") as client:
+        result = await client.post("/v1/systemone", json=payload)
+    assert result.status_code == 200
+    assert result.json()["answers"]["refund"] == {"type": "noul", "noul": .75}
+    assert len(engine.calls) == 1
+
+
+@pytest.mark.parametrize("body,status", [ 
     ('{"state":"one","state":"two","questions":{}}', 400),
     ('{"state":[NaN],"questions":{}}', 400),
     ('{', 400),

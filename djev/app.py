@@ -169,6 +169,13 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
         finally:
             active -= 1
 
+    # JevBench's stock TypeSafe adapter speaks this wire path. It intentionally
+    # shares the strict parser, admission control, typed contract and response
+    # with Djev's native path; no result is translated or re-scored.
+    @app.post("/v1/systemone", include_in_schema=False)
+    async def systemone(request: Request):
+        return await evaluate(request)
+
     static_dir = static_dir if static_dir is not None else Path(__file__).resolve().parents[1] / "playground" / "dist"
     if static_dir.is_dir():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="playground")

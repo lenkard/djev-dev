@@ -68,6 +68,20 @@ def main() -> int:
         ("mime_mismatch", "/v1/request", {"state": "x", "images": [data_url("red", mime="image/jpeg")], "questions": {}}, 422),
         ("dimension_limit", "/v1/request", {"state": "x", "images": [too_wide], "questions": {}}, 422),
         ("attachment_limit", "/v1/request", {"state": "x", "questions": {str(i): image_question(red) for i in range(7)}}, 422),
+        ("choice", "/v1/request", {"state": "My card was charged twice.",
+         "questions": {"team": {"type": "choice", "instructions": "Which team should handle this?",
+                                 "criteria": {"billing": "Payments and charges", "technical": "Bugs and outages"}}},
+         "options": {"seed": 17}}),
+        ("score", "/v1/request", {"state": "The production service is unavailable for every customer.",
+         "questions": {"severity": {"type": "score", "instructions": "Rate incident severity.",
+                                      "criteria": ["Low", "High", "Critical"]}}, "options": {"seed": 17}}),
+        ("mixed_samples_diagnostics", "/v1/request", {"state": "Help! Payouts have failed for three days.",
+         "questions": {"urgent": {"type": "noul", "instructions": "Is this urgent?"},
+                       "team": {"type": "choice", "instructions": "Route the issue.",
+                                "criteria": {"billing": "Payments", "technical": "Bugs"}},
+                       "frustration": {"type": "score", "instructions": "Rate customer frustration.",
+                                       "criteria": ["Calm", "Frustrated", "Very angry"]}},
+         "options": {"samples": 2, "seed": -7919, "diagnostics": True}}),
         ("typesafe", "/v1/systemone", {"model": "djev-latest", "state": "The service is down and a customer is waiting.",
          "questions": {"urgent": {"type": "noul", "instructions": "Does this require an immediate response?"}}}),
     ]
@@ -89,6 +103,19 @@ def main() -> int:
                                 (expected_status != 200 or isinstance(response.get("answers"), dict)))
             failed = failed or not receipt["valid"]
             stream.write(json.dumps(receipt, separators=(",", ":")) + "\n")
+
+        # Fixed seed is a reproducibility contract, not a cache claim: each call
+        # must independently produce the same typed evidence.
+        seeded = {"state": "Please cancel my subscription.",
+                  "questions": {"cancel": {"type": "noul", "instructions": "Does the customer want cancellation?"}},
+                  "options": {"seed": 2026}}
+        first, second = request(client, endpoint, "/v1/request", seeded), request(client, endpoint, "/v1/request", seeded)
+        deterministic = (first["status"] == second["status"] == 200 and
+                         first.get("response", {}).get("answers") == second.get("response", {}).get("answers"))
+        receipt = {"kind": "case", "name": "fixed_seed_repeat", "valid": deterministic,
+                   "first": first, "second": second}
+        failed = failed or not deterministic
+        stream.write(json.dumps(receipt, separators=(",", ":")) + "\n")
     return int(failed)
 
 

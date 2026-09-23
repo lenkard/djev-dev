@@ -21,7 +21,7 @@ FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
 # Installing from / would make setuptools scan the entire image for packages.
 WORKDIR /opt/djev
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    python3 python3-pip curl && rm -rf /var/lib/apt/lists/*
+    python3 python3-pip curl libgomp1 && rm -rf /var/lib/apt/lists/*
 COPY --from=llama-build /src/llama.cpp/build/bin/ /opt/llama/bin/
 COPY pyproject.toml LICENSE NOTICE ./
 COPY djev/ ./djev/

@@ -3,7 +3,7 @@
   "scope": "private local deployment; no Benchmark Heaven submission",
   "djev_commit": "a3b75b6",
   "llama_cpp_repository": "https://github.com/lenkard/llama.cpp.git",
-  "llama_cpp_commit": "3b043a348",
+  "llama_cpp_commit": "5bd563abf",
   "container_image": "djev-llamacpp:experimental",
   "container_image_digest_aiserver": "sha256:77a1d005dd3076fcb2e1ec209b69ef30e2333ceca4de248fd827c0e2d11b6a37",
   "cuda_architecture": "sm_86",

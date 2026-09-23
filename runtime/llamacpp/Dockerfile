@@ -1,6 +1,6 @@
 FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS llama-build
 ARG LLAMA_CPP_REPOSITORY=https://github.com/lenkard/llama.cpp.git
-ARG LLAMA_CPP_COMMIT=3b043a348
+ARG LLAMA_CPP_COMMIT=5bd563abf
 # Pin the CUDA architecture to the deployment GPU so nvcc does not fall back
 # to a generic default (Docker builds cannot probe the host GPU). 86 = sm_86
 # (RTX 3090). Override with --build-arg CUDA_ARCH= for other GPUs.

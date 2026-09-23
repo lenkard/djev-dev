@@ -87,9 +87,13 @@ async def test_llamacpp_sends_state_and_question_images_in_marker_order():
 
     async def handler(http_request):
         body = json.loads(http_request.content)
-        assert body["prompt_token_ids"] == []
         assert body["images"] == [image, image]
         assert body["multimodal_prompt"].count("<__media__>") == 2
+        if http_request.url.path.endswith("/preflight"):
+            return httpx.Response(200, json={"object": "diffusion.preflight", "prompt_tokens": 99,
+                                              "canvas_length": body["canvas_length"], "max_context_tokens": 4096,
+                                              "fits_context": True})
+        assert body["prompt_token_ids"] == []
         rows = [{"500": math.log(.2), "501": math.log(.8)} for _ in body["seed_canvas"]]
         return httpx.Response(200, json={
             "object": "diffusion.read", "logprobs": {"positions": rows},

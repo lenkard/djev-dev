@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import math
 import os
 from typing import Any
@@ -20,6 +21,11 @@ from .engine import (
     _description,
 )
 from .images import validate_image_data_url
+
+
+@dataclass(frozen=True)
+class LlamaCppImageSchema(CompiledSchema):
+    expanded_prompt_tokens: int
 
 
 class LlamaCppDiffusionEngine(DiffusionEngine):
@@ -75,6 +81,40 @@ class LlamaCppDiffusionEngine(DiffusionEngine):
         if not isinstance(prompt, str) or prompt.count("<__media__>") != len(images):
             raise SchemaError("the tokenizer did not preserve all multimodal image markers")
         return prompt, images
+
+    async def _prepare_jobs(self, jobs, state):
+        unique = tuple(dict.fromkeys(compiled for compiled, _ in jobs
+                                     if isinstance(state, ImageState) or compiled.question_images))
+        if not unique:
+            return await super()._prepare_jobs(jobs, state)
+        prepared = {compiled: compiled for compiled, _ in jobs}
+        for compiled in unique:
+            prompt, images = self._multimodal_prompt(compiled, state)
+            body = {"multimodal_prompt": prompt, "images": images,
+                    "canvas_length": compiled.canvas_width}
+            try:
+                response = await self._http().post(f"{self.upstream}/v1/diffusion/preflight", json=body)
+            except httpx.HTTPError as exc:
+                raise BackendError("the llama.cpp image preflight backend could not be reached") from exc
+            if response.status_code != 200:
+                raise BackendError("the llama.cpp image preflight backend failed")
+            try:
+                payload = response.json()
+                count = payload["prompt_tokens"]
+                fits = payload["fits_context"]
+                if (payload.get("object") != "diffusion.preflight" or type(count) is not int or count < 1
+                        or type(fits) is not bool):
+                    raise ValueError("invalid preflight evidence")
+            except (TypeError, KeyError, ValueError) as exc:
+                raise BackendError("the llama.cpp image preflight returned invalid evidence") from exc
+            if not fits:
+                raise SchemaError("the image, state and answer canvas exceed the model context limit; shorten the state or questions")
+            prepared[compiled] = LlamaCppImageSchema(
+                compiled.system_prompt, compiled.template, compiled.slots, compiled.canvas_width,
+                compiled.label_ids, question_images=compiled.question_images,
+                expanded_prompt_tokens=count,
+            )
+        return [(prepared[compiled], seed) for compiled, seed in jobs]
 
     async def generate(self, request):
         result = await super().generate(request)
@@ -146,6 +186,8 @@ class LlamaCppDiffusionEngine(DiffusionEngine):
                 usage[field] = value
             if usage["completion_tokens"] != compiled.canvas_width:
                 raise ValueError("unexpected canvas usage")
+            if isinstance(compiled, LlamaCppImageSchema) and usage["prompt_tokens"] != compiled.expanded_prompt_tokens:
+                raise ValueError("image preflight token accounting differed from inference")
             return probabilities, masses, usage, exact_logprobs
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             raise BackendError("the llama.cpp backend returned incomplete or invalid decision evidence") from exc

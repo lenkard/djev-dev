@@ -69,9 +69,9 @@ async def test_llamacpp_adapter_rejects_missing_exact_label_scores():
             await engine.generate(request())
 
 
-def test_llamacpp_rejects_image_request_before_backend_call():
+def test_llamacpp_validates_image_request_before_backend_call():
     engine = LlamaCppDiffusionEngine(Tokenizer(), canvas=32, input_transport="token_ids")
-    # Construct directly: capability rejection must precede image decoding.
+    # Construct directly: malformed image bytes must be rejected before a read.
     payload = DjevRequest.model_construct(state="state", images=["data:image/png;base64,invalid"], questions={})
-    with pytest.raises(Exception, match="does not support image"):
+    with pytest.raises(Exception, match="valid base64"):
         engine._request_state(payload)

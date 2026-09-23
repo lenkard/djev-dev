@@ -8,14 +8,18 @@ from typing import Any
 
 import httpx
 
+from .contracts import MAX_IMAGE_ATTACHMENTS, description_images, question_descriptions, request_image_count
 from .engine import (
     BackendError,
     CompiledSchema,
     DiffusionEngine,
+    ImageState,
     ReadResult,
     SchemaError,
     _PreparedSchema,
+    _description,
 )
+from .images import validate_image_data_url
 
 
 class LlamaCppDiffusionEngine(DiffusionEngine):
@@ -25,7 +29,52 @@ class LlamaCppDiffusionEngine(DiffusionEngine):
     separate chat-template implementation in the experimental C++ server.
     """
 
-    supports_images = False
+    supports_images = True
+
+    def _request_state(self, request):
+        images = getattr(request, "images", None)
+        if images and (not isinstance(images, (list, tuple)) or len(images) != 1):
+            raise SchemaError("at most one state image is supported per request")
+        try:
+            if request_image_count(request) > MAX_IMAGE_ATTACHMENTS:
+                raise ValueError(f"at most {MAX_IMAGE_ATTACHMENTS} image attachments are supported")
+            for image in images or ():
+                validate_image_data_url(image)
+            for question in request.questions.values():
+                for value in question_descriptions(question):
+                    for image in description_images(value):
+                        validate_image_data_url(image)
+        except ValueError as exc:
+            raise SchemaError(str(exc)) from None
+        return ImageState(_description(request.state), tuple(images)) if images else _description(request.state)
+
+    def _check_context(self, compiled, state):
+        # libmtmd expands each media marker to vision embeddings; the C++ read
+        # endpoint owns the authoritative expanded-token context check.
+        if isinstance(state, ImageState) or compiled.question_images:
+            return compiled
+        return super()._check_context(compiled, state)
+
+    def _multimodal_prompt(self, compiled: CompiledSchema, state: str | ImageState) -> tuple[str, list[str]]:
+        images = list(state.images) if isinstance(state, ImageState) else []
+        user = "".join("<__media__>\n" for _ in images)
+        user += state.text if isinstance(state, ImageState) else state
+        for index, image in enumerate(compiled.question_images, 1):
+            images.append(image)
+            user += f"\nQuestion attachment {index}:\n<__media__>"
+        messages = [
+            {"role": "system", "content": compiled.system_prompt},
+            {"role": "user", "content": user},
+        ]
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, enable_thinking=False,
+            )
+        except Exception as exc:
+            raise SchemaError("the tokenizer could not render the multimodal chat prompt") from exc
+        if not isinstance(prompt, str) or prompt.count("<__media__>") != len(images):
+            raise SchemaError("the tokenizer did not preserve all multimodal image markers")
+        return prompt, images
 
     async def generate(self, request):
         result = await super().generate(request)
@@ -35,23 +84,27 @@ class LlamaCppDiffusionEngine(DiffusionEngine):
             diagnostics.update({
                 "engine": "diffusiongemma-llamacpp-experimental",
                 "quantization": "server-reported GGUF; inspect /props for model_path",
-                "images": False,
+                "images": True,
             })
             body["diagnostics"] = diagnostics
             return type(result)(body, result.compile_ms, result.model_ms)
         return result
 
-    async def _read(self, compiled: CompiledSchema, state: str, seed: int) -> ReadResult:
-        if not isinstance(compiled, _PreparedSchema):
+    async def _read(self, compiled: CompiledSchema, state: str | ImageState, seed: int) -> ReadResult:
+        multimodal = isinstance(state, ImageState) or bool(compiled.question_images)
+        if not multimodal and not isinstance(compiled, _PreparedSchema):
             raise SchemaError("the llama.cpp backend requires tokenizer token-ID input")
         body = {
-            "prompt_token_ids": list(compiled.prompt_token_ids),
+            "prompt_token_ids": [] if multimodal else list(compiled.prompt_token_ids),
             "seed_canvas": self._canvas(compiled, seed),
             "canvas_length": compiled.canvas_width,
             "max_steps": 1,
             "read_only": True,
             "logprob_token_ids": list(compiled.label_ids),
         }
+        if multimodal:
+            prompt, images = self._multimodal_prompt(compiled, state)
+            body.update({"multimodal_prompt": prompt, "images": images})
         try:
             response = await self._http().post(f"{self.upstream}/v1/diffusion/reads", json=body)
         except httpx.HTTPError as exc:
@@ -141,7 +194,7 @@ async def create_llamacpp_engine() -> LlamaCppDiffusionEngine:
                 and structured.get("decoder_passes") == 1
                 and structured.get("exact_requested_logprobs") is True
                 and structured.get("token_id_input") is True
-                and structured.get("images") is False):
+                and structured.get("images") is True):
             raise ValueError("missing structured-read capabilities")
     except (httpx.HTTPError, TypeError, ValueError):
         await engine.close()

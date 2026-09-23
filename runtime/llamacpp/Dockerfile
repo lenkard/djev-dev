@@ -23,7 +23,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY --from=llama-build /src/llama.cpp/build/bin/ /opt/llama/bin/
 COPY pyproject.toml LICENSE NOTICE ./
 COPY djev/ ./djev/
-RUN python3 -m pip install --no-cache-dir '.[tokenizer]'
+RUN python3 -m pip install --break-system-packages --no-cache-dir '.[tokenizer]'
 COPY runtime/llamacpp/entrypoint.sh /entrypoint.sh
 RUN chmod 0755 /entrypoint.sh
 ENV HF_HOME=/cache/huggingface TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1

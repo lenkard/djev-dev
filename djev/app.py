@@ -107,7 +107,7 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
                            "criterion_characters": 500, "questions": 32, "images": 6,
                            "state_images": 1, "image_bytes": 5 * 1024 * 1024,
                            "image_dimension": 2048, "body_bytes": MAX_BODY_BYTES},
-                "features": {"images": not llama_cpp, "question_images": not llama_cpp,
+                "features": {"images": True, "question_images": True,
                              "durable_requests": False, "backend": "llamacpp" if llama_cpp else "vllm"}}
 
     @app.post("/v1/request", openapi_extra={"requestBody": {"required": True, "content": {

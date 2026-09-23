@@ -28,5 +28,6 @@ COPY djev/ ./djev/
 RUN python3 -m pip install --break-system-packages --no-cache-dir '.[tokenizer]'
 COPY runtime/llamacpp/entrypoint.sh /entrypoint.sh
 RUN chmod 0755 /entrypoint.sh
-ENV HF_HOME=/cache/huggingface TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1
+ENV HF_HOME=/cache/huggingface TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/opt/llama/bin
 ENTRYPOINT ["/entrypoint.sh"]

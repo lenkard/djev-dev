@@ -1,8 +1,11 @@
+import base64
+from io import BytesIO
 import json
 import math
 import re
 
 import httpx
+from PIL import Image
 import pytest
 
 from djev.contracts import DjevRequest
@@ -19,6 +22,8 @@ class Tokenizer:
                 for part in re.findall(r"<\|channel>|<channel\|>|yes|no|.", text, re.DOTALL)]
 
     def apply_chat_template(self, messages, **kwargs):
+        if kwargs.get("tokenize") is False:
+            return "\n".join(str(message["content"]) for message in messages)
         return [2, 3, 4]
 
 
@@ -67,6 +72,35 @@ async def test_llamacpp_adapter_rejects_missing_exact_label_scores():
         engine = LlamaCppDiffusionEngine(Tokenizer(), client=client, canvas=32, input_transport="token_ids")
         with pytest.raises(Exception, match="incomplete or invalid"):
             await engine.generate(request())
+
+
+@pytest.mark.asyncio
+async def test_llamacpp_sends_state_and_question_images_in_marker_order():
+    png = BytesIO()
+    Image.new("RGB", (32, 32), "red").save(png, format="PNG")
+    image = "data:image/png;base64," + base64.b64encode(png.getvalue()).decode()
+    payload = DjevRequest.model_validate({
+        "state": "Use both images as evidence.", "images": [image],
+        "questions": {"red": {"type": "noul", "instructions": {"image": image, "text": "Is red present?"}}},
+        "options": {"seed": 0},
+    })
+
+    async def handler(http_request):
+        body = json.loads(http_request.content)
+        assert body["prompt_token_ids"] == []
+        assert body["images"] == [image, image]
+        assert body["multimodal_prompt"].count("<__media__>") == 2
+        rows = [{"500": math.log(.2), "501": math.log(.8)} for _ in body["seed_canvas"]]
+        return httpx.Response(200, json={
+            "object": "diffusion.read", "logprobs": {"positions": rows},
+            "usage": {"prompt_tokens": 99, "completion_tokens": len(rows), "total_tokens": 99 + len(rows)},
+        })
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        engine = LlamaCppDiffusionEngine(Tokenizer(), client=client, canvas=32, input_transport="token_ids")
+        result = await engine.generate(payload)
+    assert result.body["answers"]["red"]["noul"] == pytest.approx(.2)
+    assert result.body["usage"] == {"input_tokens": 99, "output_tokens": 16}
 
 
 def test_llamacpp_validates_image_request_before_backend_call():

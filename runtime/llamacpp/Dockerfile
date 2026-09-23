@@ -18,6 +18,8 @@ RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/lib/x86_64-linux-gnu/libc
     cmake --build build --target llama-diffusion-gemma-server -j"$(nproc)"
 
 FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
+# Installing from / would make setuptools scan the entire image for packages.
+WORKDIR /opt/djev
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3 python3-pip curl && rm -rf /var/lib/apt/lists/*
 COPY --from=llama-build /src/llama.cpp/build/bin/ /opt/llama/bin/

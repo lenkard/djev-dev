@@ -1,11 +1,11 @@
 {
   "name": "djev-llamacpp-q5-3090-local",
   "scope": "private local deployment; no Benchmark Heaven submission",
-  "djev_commit": "83441a9",
+  "djev_commit": "a3b75b6",
   "llama_cpp_repository": "https://github.com/lenkard/llama.cpp.git",
   "llama_cpp_commit": "43157c953",
   "container_image": "djev-llamacpp:experimental",
-  "container_image_digest_aiserver": "sha256:ee77a965776af3c75a016aab1a5cc987dcae01d6fdd8d0234b3a32f7ab7543e0",
+  "container_image_digest_aiserver": "sha256:77a1d005dd3076fcb2e1ec209b69ef30e2333ceca4de248fd827c0e2d11b6a37",
   "cuda_architecture": "sm_86",
   "hardware": "NVIDIA RTX 3090 24GB",
   "decoder": {

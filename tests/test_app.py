@@ -38,7 +38,9 @@ async def test_request_success_default_seed_health_and_honest_timing():
         assert result.json()["answers"]["refund"]["noul"] == .75
         assert result.headers["cache-control"] == "no-store"
         assert result.headers["x-content-type-options"] == "nosniff"
-        assert "model;dur=2.000" in result.headers["server-timing"]
+        assert "server-timing" not in result.headers
+        assert "x-djev-model-ms" not in result.headers
+        assert "x-djev-server-ms" not in result.headers
         assert engine.calls[0].options.seed == 0
         assert (await client.get("/v1/machine")).status_code == 404
 

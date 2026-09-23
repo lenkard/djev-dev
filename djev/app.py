@@ -131,7 +131,6 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
             return _error(503, "Request capacity is full; retry later", **{"Retry-After": "1"})
         # Admission is atomic on the serving event loop and precedes body reads.
         active += 1
-        started = time.perf_counter()
         try:
             async with asyncio.timeout(timeout_seconds):
                 data = bytearray()
@@ -155,12 +154,7 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
                 except Exception:
                     return _error(503, "Model adapter is unavailable; check the server runtime configuration")
                 result = await current.generate(parsed)
-                elapsed = (time.perf_counter() - started) * 1000
-                return JSONResponse(result.body, headers={
-                    "Server-Timing": f"compile;dur={result.compile_ms:.3f},model;dur={result.model_ms:.3f},total;dur={elapsed:.3f}",
-                    "X-Djev-Model-Ms": f"{result.model_ms:.3f}",
-                    "X-Djev-Server-Ms": f"{elapsed:.3f}",
-                })
+                return JSONResponse(result.body)
         except CapacityError:
             return _error(503, "Inference capacity is full; retry later", **{"Retry-After": "1"})
         except SchemaError as exc:

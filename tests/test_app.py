@@ -95,6 +95,35 @@ async def test_capacity_rejects_without_waiting_and_releases_after_cancelled_dea
         assert (await client.post("/v1/request", json=BODY)).status_code == 504
 
 
+async def test_client_cancellation_propagates_to_engine_and_releases_capacity():
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class Waiting(Engine):
+        async def generate(self, request):
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    app = create_app(engine=Waiting(), max_active_requests=1, timeout_seconds=60)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
+        pending = asyncio.create_task(client.post("/v1/request", json=BODY))
+        await entered.wait()
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await asyncio.wait_for(cancelled.wait(), timeout=.1)
+        # The cancelled request's admission slot must be available immediately.
+        retry = asyncio.create_task(client.post("/v1/request", json=BODY))
+        await entered.wait()
+        retry.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await retry
+
+
 async def test_untrusted_backend_error_is_not_reflected():
     class Broken(Engine):
         async def generate(self, request):

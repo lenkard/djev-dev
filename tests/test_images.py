@@ -13,10 +13,19 @@ def data_url(size=(32, 32), format="PNG", mime="image/png"):
     return f"data:{mime};base64," + base64.b64encode(image.getvalue()).decode()
 
 
-def test_decoded_image_has_verified_dimensions_and_mime():
-    result = validate_image_data_url(data_url())
-    assert (result.width, result.height, result.mime_type) == (32, 32, "image/png")
+@pytest.mark.parametrize(("format", "mime"), [
+    ("PNG", "image/png"), ("JPEG", "image/jpeg"), ("WEBP", "image/webp"),
+])
+def test_decoded_image_has_verified_dimensions_and_mime(format, mime):
+    result = validate_image_data_url(data_url(format=format, mime=mime))
+    assert (result.width, result.height, result.mime_type) == (32, 32, mime)
     assert "data=" not in repr(result)
+
+
+def test_corrupt_but_base64_encoded_image_is_rejected():
+    corrupt = "data:image/png;base64," + base64.b64encode(b"not an image").decode()
+    with pytest.raises(ValueError, match="invalid or incomplete"):
+        validate_image_data_url(corrupt)
 
 
 @pytest.mark.parametrize("value", [

@@ -1,0 +1,59 @@
+services:
+  llama:
+    build:
+      context: .
+      dockerfile: runtime/llamacpp/Dockerfile
+    image: djev-llamacpp:experimental
+    command:
+      - llama
+      - -m
+      - /models/diffusiongemma-26B-A4B-it-Q5_K_M.gguf
+      - --mmproj
+      - /models/mmproj-diffusiongemma-26B-A4B-it-f16.gguf
+      - --host
+      - 0.0.0.0
+      - --port
+      - "18081"
+      - -c
+      - "4096"
+      - -ngl
+      - "999"
+      - --metrics
+      - --slots
+    gpus: all
+    restart: unless-stopped
+    shm_size: 16gb
+    volumes:
+      - ${DJEV_MODEL_DIR:?set DJEV_MODEL_DIR}:/models:ro
+    expose:
+      - "18081"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  djev:
+    image: djev-llamacpp:experimental
+    depends_on:
+      llama:
+        condition: service_healthy
+    command: ["api", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DJEV_BACKEND: llamacpp
+      DJEV_UPSTREAM: http://llama:18081
+      DJEV_MAX_MODEL_LEN: "4096"
+      DJEV_API_KEY: ${DJEV_API_KEY:?set DJEV_API_KEY}
+      DJEV_OFFLINE: ${DJEV_OFFLINE:-0}
+    restart: unless-stopped
+    volumes:
+      - ${DJEV_HF_CACHE:-./.cache/huggingface}:/cache/huggingface
+    ports:
+      - "${DJEV_BIND_ADDR:-127.0.0.1}:8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

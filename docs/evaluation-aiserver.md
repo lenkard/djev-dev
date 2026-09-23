@@ -123,12 +123,38 @@ Use the same frozen task set/configuration, then sweep **one variable at a time*
 
 For production, choose a confidence policy after measuring calibration: examples are auto-act high confidence, confirm middle confidence, escalate low confidence. Refit thresholds only on a development split and report test-set calibration separately.
 
+## JevBench-compatible endpoint and reproducible command
+
+Djev now exposes `POST /v1/systemone` as an alias of its strict native `/v1/request` handler. This accepts the stock JevBench `typesafe` adapter's body without result translation. Use `model: "djev-latest"`; it is an accepted Djev alias.
+
+With Djev running locally on `:18080`, run a pilot without credentials or a monetary estimate:
+
+```bash
+cd /path/to/jevbench
+python -m jevbench.cli run \
+  --tasks datasets/public/easy.jsonl --limit 3 \
+  --adapter typesafe --endpoint http://127.0.0.1:18080 \
+  --model djev-latest --key-env '' \
+  --reserve-usd 0 --cap-usd 0 \
+  --cost-basis self_hosted_experimental \
+  --results /safe/output/results.jsonl \
+  --raw-dir /safe/output/raw \
+  --ledger /safe/output/ledger.jsonl \
+  --manifest /safe/output/manifest.json \
+  --run-label djev-llamacpp-q5-3090-experimental
+python -m jevbench.cli summarize \
+  --tasks datasets/public/easy.jsonl \
+  --results /safe/output/results.jsonl \
+  --public-export /safe/output/summary.json
+```
+
+A first three-item transport pilot completed successfully on AISERVER: 3/3 valid native responses, 3/3 correct, caller p50 0.197 s and p95 0.222 s. It is only a transport smoke test (6.25% of the easy public split), **not** an accuracy or calibration result.
+
 ## Immediate next implementation
 
 1. Build the `djev-structured-read` llama.cpp branch into the AISERVER runtime image and expose it privately on loopback.
 2. Start Djev with `DJEV_BACKEND=llamacpp`, `DJEV_UPSTREAM=http://127.0.0.1:18081`, and one active request/read.
-3. Add a small local runner that writes JSONL raw receipts and a manifest before touching JevBench.
-4. Run Gates A/B, review every failed case, freeze the config, then run Gate C.
+3. Run Gates A/B, review every failed case, freeze the config, then run Gate C.
 
 ## Sources
 

@@ -101,12 +101,14 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
 
     @app.get("/config")
     async def config():
+        llama_cpp = os.environ.get("DJEV_BACKEND", "vllm") == "llamacpp"
         return {"api_path": "/v1/request", "model": "djev-0.1", "auth_required": bool(api_key),
                 "limits": {"state_characters": 20000, "instructions_characters": 2000,
                            "criterion_characters": 500, "questions": 32, "images": 6,
                            "state_images": 1, "image_bytes": 5 * 1024 * 1024,
                            "image_dimension": 2048, "body_bytes": MAX_BODY_BYTES},
-                "features": {"images": True, "question_images": True, "durable_requests": False}}
+                "features": {"images": not llama_cpp, "question_images": not llama_cpp,
+                             "durable_requests": False, "backend": "llamacpp" if llama_cpp else "vllm"}}
 
     @app.post("/v1/request", openapi_extra={"requestBody": {"required": True, "content": {
         "application/json": {"schema": {"$ref": "#/components/schemas/DjevRequest"}}}}})

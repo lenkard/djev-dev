@@ -43,7 +43,17 @@ async def test_request_success_default_seed_health_and_honest_timing():
         assert (await client.get("/v1/machine")).status_code == 404
 
 
-@pytest.mark.parametrize("body,status", [
+async def test_systemone_is_a_wire_compatible_alias_of_the_native_request_path():
+    engine = Engine()
+    payload = {**BODY, "model": "djev-latest"}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(create_app(engine=engine)), base_url="http://test") as client:
+        result = await client.post("/v1/systemone", json=payload)
+    assert result.status_code == 200
+    assert result.json()["answers"]["refund"] == {"type": "noul", "noul": .75}
+    assert len(engine.calls) == 1
+
+
+@pytest.mark.parametrize("body,status", [ 
     ('{"state":"one","state":"two","questions":{}}', 400),
     ('{"state":[NaN],"questions":{}}', 400),
     ('{', 400),
@@ -63,6 +73,8 @@ async def test_optional_bearer_key_precedes_body_parsing_and_rejects_duplicates(
     engine = Engine()
     async with httpx.AsyncClient(transport=httpx.ASGITransport(create_app(engine=engine, api_key="test-only-placeholder")), base_url="http://test") as client:
         assert (await client.post("/v1/request", content="{")).status_code == 401
+        assert (await client.get("/health")).status_code == 401
+        assert (await client.get("/config")).status_code == 401
         headers = [("Authorization", "Bearer test-only-placeholder")] * 2
         assert (await client.post("/v1/request", json=BODY, headers=headers)).status_code == 401
         assert (await client.post("/v1/request", json=BODY, headers={"Authorization": "Bearer test-only-placeholder"})).status_code == 200
@@ -83,6 +95,35 @@ async def test_capacity_rejects_without_waiting_and_releases_after_cancelled_dea
         assert rejected.status_code == 503 and rejected.headers["retry-after"] == "1"
         assert (await first).status_code == 504
         assert (await client.post("/v1/request", json=BODY)).status_code == 504
+
+
+async def test_client_cancellation_propagates_to_engine_and_releases_capacity():
+    entered = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    class Waiting(Engine):
+        async def generate(self, request):
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+    app = create_app(engine=Waiting(), max_active_requests=1, timeout_seconds=60)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
+        pending = asyncio.create_task(client.post("/v1/request", json=BODY))
+        await entered.wait()
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await asyncio.wait_for(cancelled.wait(), timeout=.1)
+        # The cancelled request's admission slot must be available immediately.
+        retry = asyncio.create_task(client.post("/v1/request", json=BODY))
+        await entered.wait()
+        retry.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await retry
 
 
 async def test_untrusted_backend_error_is_not_reflected():

@@ -71,7 +71,12 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        response = await call_next(request)
+        # The service is commonly published through a tunnel. Do not leave
+        # metadata, OpenAPI, static UI, or health details anonymously visible.
+        if api_key and not authorized(request):
+            response = _error(401, "A valid API key is required", **{"WWW-Authenticate": "Bearer"})
+        else:
+            response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -101,20 +106,20 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
 
     @app.get("/config")
     async def config():
+        llama_cpp = os.environ.get("DJEV_BACKEND", "vllm") == "llamacpp"
         return {"api_path": "/v1/request", "model": "djev-0.1", "auth_required": bool(api_key),
                 "limits": {"state_characters": 20000, "instructions_characters": 2000,
                            "criterion_characters": 500, "questions": 32, "images": 6,
                            "state_images": 1, "image_bytes": 5 * 1024 * 1024,
                            "image_dimension": 2048, "body_bytes": MAX_BODY_BYTES},
-                "features": {"images": True, "question_images": True, "durable_requests": False}}
+                "features": {"images": True, "question_images": True,
+                             "durable_requests": False, "backend": "llamacpp" if llama_cpp else "vllm"}}
 
     @app.post("/v1/request", openapi_extra={"requestBody": {"required": True, "content": {
         "application/json": {"schema": {"$ref": "#/components/schemas/DjevRequest"}}}}})
     async def evaluate(request: Request):
         nonlocal active
-        if not authorized(request):
-            return _error(401, "A valid API key is required", **{"WWW-Authenticate": "Bearer"})
-        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json": 
             return _error(415, "Content-Type must be application/json")
         lengths = request.headers.getlist("content-length")
         try:
@@ -166,6 +171,13 @@ def create_app(*, engine=None, engine_factory=None, api_key: str | None = None,
             return _error(504, "Request deadline exceeded; no automatic retry was attempted")
         finally:
             active -= 1
+
+    # JevBench's stock TypeSafe adapter speaks this wire path. It intentionally
+    # shares the strict parser, admission control, typed contract and response
+    # with Djev's native path; no result is translated or re-scored.
+    @app.post("/v1/systemone", include_in_schema=False)
+    async def systemone(request: Request):
+        return await evaluate(request)
 
     static_dir = static_dir if static_dir is not None else Path(__file__).resolve().parents[1] / "playground" / "dist"
     if static_dir.is_dir():

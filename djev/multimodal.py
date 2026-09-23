@@ -131,8 +131,14 @@ class DjevEngine(DiffusionEngine):
         return result
 
 
-async def create_engine() -> DjevEngine:
-    """Construct the lazy API engine on its serving event loop; no model load."""
+async def create_engine() -> DiffusionEngine:
+    """Construct the selected lazy engine on its serving event loop; no model load."""
+    backend = os.environ.get('DJEV_BACKEND', 'vllm')
+    if backend == 'llamacpp':
+        from .llamacpp import create_llamacpp_engine
+        return await create_llamacpp_engine()
+    if backend != 'vllm':
+        raise RuntimeError("DJEV_BACKEND must be 'vllm' or 'llamacpp'")
     from transformers import AutoTokenizer
     from .config import MODEL, MODEL_REVISION, bounded_integer, get_max_model_len, get_max_request_reads
     tokenizer = await asyncio.to_thread(
